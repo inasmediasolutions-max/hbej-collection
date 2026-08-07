@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Product, Category } from '@/types';
-import { Plus, Edit2, Trash2, Search, X, Image as ImageIcon } from 'lucide-react';
+import { Plus, Edit2, Trash2, Search, X, Image as ImageIcon, Palette } from 'lucide-react';
 
 export default function AdminProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -22,6 +22,7 @@ export default function AdminProductsPage() {
     short_description: '',
     full_description: '',
     main_image: '',
+    additional_images: [] as string[],
     material: '',
     color: '',
     dimensions: '',
@@ -33,7 +34,8 @@ export default function AdminProductsPage() {
     is_best_seller: false,
   });
 
-  const [uploading, setUploading] = useState(false);
+  const [uploadingMain, setUploadingMain] = useState(false);
+  const [uploadingVariants, setUploadingVariants] = useState(false);
   const [message, setMessage] = useState('');
 
   useEffect(() => {
@@ -57,16 +59,17 @@ export default function AdminProductsPage() {
     }
   }
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Handle Main Photo Upload
+  const handleMainImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     try {
-      setUploading(true);
-      setMessage('Uploading photo...');
+      setUploadingMain(true);
+      setMessage('Uploading main photo...');
       
       const fileExt = file.name.split('.').pop();
-      const fileName = `${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`;
+      const fileName = `main_${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`;
       const filePath = `products/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
@@ -79,13 +82,62 @@ export default function AdminProductsPage() {
         .from('hbej-media')
         .getPublicUrl(filePath);
 
-      setFormData({ ...formData, main_image: urlData.publicUrl });
-      setMessage('Photo uploaded successfully!');
+      setFormData((prev) => ({ ...prev, main_image: urlData.publicUrl }));
+      setMessage('Main photo uploaded successfully!');
     } catch (err: any) {
       setMessage(`Upload failed: ${err.message}`);
     } finally {
-      setUploading(false);
+      setUploadingMain(false);
     }
+  };
+
+  // Handle Multiple Color Variant Photos Upload
+  const handleVariantImagesUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    try {
+      setUploadingVariants(true);
+      setMessage(`Uploading ${files.length} color variant photo(s)...`);
+
+      const uploadedUrls: string[] = [];
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const fileExt = file.name.split('.').pop();
+        const fileName = `variant_${Date.now()}_${i}_${Math.random().toString(36).substring(2)}.${fileExt}`;
+        const filePath = `products/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('hbej-media')
+          .upload(filePath, file);
+
+        if (uploadError) throw uploadError;
+
+        const { data: urlData } = supabase.storage
+          .from('hbej-media')
+          .getPublicUrl(filePath);
+
+        uploadedUrls.push(urlData.publicUrl);
+      }
+
+      setFormData((prev) => ({
+        ...prev,
+        additional_images: [...prev.additional_images, ...uploadedUrls],
+      }));
+      setMessage('All color variant photos uploaded successfully!');
+    } catch (err: any) {
+      setMessage(`Color variant upload failed: ${err.message}`);
+    } finally {
+      setUploadingVariants(false);
+    }
+  };
+
+  const removeVariantImage = (indexToRemove: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      additional_images: prev.additional_images.filter((_, idx) => idx !== indexToRemove),
+    }));
   };
 
   const openAddModal = () => {
@@ -97,6 +149,7 @@ export default function AdminProductsPage() {
       short_description: '',
       full_description: '',
       main_image: '',
+      additional_images: [],
       material: '',
       color: '',
       dimensions: '',
@@ -120,6 +173,7 @@ export default function AdminProductsPage() {
       short_description: product.short_description || '',
       full_description: product.full_description || '',
       main_image: product.main_image,
+      additional_images: product.additional_images || [],
       material: product.material || '',
       color: product.color || '',
       dimensions: product.dimensions || '',
@@ -156,6 +210,7 @@ export default function AdminProductsPage() {
         short_description: formData.short_description,
         full_description: formData.full_description,
         main_image: formData.main_image,
+        additional_images: formData.additional_images,
         material: formData.material,
         color: formData.color,
         dimensions: formData.dimensions,
@@ -207,7 +262,7 @@ export default function AdminProductsPage() {
             Manage Bag Catalog
           </h1>
           <p className="text-xs text-neutral-400">
-            Add new bags, set prices, update stock, and upload photos
+            Add new bags, set prices, upload color variant photos, and update stock
           </p>
         </div>
 
@@ -234,10 +289,11 @@ export default function AdminProductsPage() {
         <table className="w-full text-left text-xs">
           <thead className="text-neutral-500 uppercase border-b border-neutral-900">
             <tr>
-              <th className="py-3 px-3">Bag Photo</th>
+              <th className="py-3 px-3">Main Photo</th>
               <th className="py-3 px-3">Name</th>
               <th className="py-3 px-3">Category</th>
               <th className="py-3 px-3">Price</th>
+              <th className="py-3 px-3">Color Options</th>
               <th className="py-3 px-3">Stock</th>
               <th className="py-3 px-3">Actions</th>
             </tr>
@@ -251,6 +307,15 @@ export default function AdminProductsPage() {
                 <td className="py-3 px-3 font-semibold text-white">{p.name}</td>
                 <td className="py-3 px-3 text-neutral-400">{p.categories?.name || 'Uncategorized'}</td>
                 <td className="py-3 px-3 font-bold text-amber-400">GH₵{p.price}</td>
+                <td className="py-3 px-3">
+                  {p.additional_images && p.additional_images.length > 0 ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-500/10 text-amber-400 rounded text-[10px] font-semibold border border-amber-500/20">
+                      <Palette className="w-3 h-3" /> Available in {p.additional_images.length + 1} colors
+                    </span>
+                  ) : (
+                    <span className="text-neutral-500 text-[10px]">Single color</span>
+                  )}
+                </td>
                 <td className="py-3 px-3">
                   <span
                     className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
@@ -289,6 +354,7 @@ export default function AdminProductsPage() {
             {message && <div className="p-3 bg-neutral-900 text-amber-400 text-xs rounded-xl">{message}</div>}
 
             <form onSubmit={handleSaveProduct} className="space-y-4 text-xs">
+              {/* Main Photo Upload */}
               <div className="space-y-2">
                 <label className="font-semibold text-neutral-300 block">Bag Main Photo *</label>
                 <div className="flex items-center gap-4">
@@ -302,10 +368,53 @@ export default function AdminProductsPage() {
                   <input
                     type="file"
                     accept="image/*"
-                    onChange={handleImageUpload}
+                    onChange={handleMainImageUpload}
                     className="text-xs text-neutral-400 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-amber-500/10 file:text-amber-400 hover:file:bg-amber-500/20"
                   />
                 </div>
+              </div>
+
+              {/* NEW SECTION: Color Variants Photos Upload */}
+              <div className="p-4 rounded-2xl bg-neutral-900/60 border border-amber-500/20 space-y-3">
+                <div className="flex items-center gap-2 text-amber-400 font-semibold text-xs">
+                  <Palette className="w-4 h-4" />
+                  <span>Available in Different Colors (Color Variant Photos)</span>
+                </div>
+                <p className="text-[11px] text-neutral-400">
+                  Upload extra photos showing this exact bag in different colors. The keyword <strong>"Available in different Colors"</strong> will be displayed automatically on the website.
+                </p>
+
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*"
+                  onChange={handleVariantImagesUpload}
+                  className="text-xs text-neutral-400 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-amber-500/20 file:text-amber-300 hover:file:bg-amber-500/30"
+                />
+
+                {/* Variant Thumbnails Preview */}
+                {formData.additional_images.length > 0 && (
+                  <div className="pt-2">
+                    <span className="text-[10px] uppercase text-neutral-500 font-semibold block mb-2">
+                      Uploaded Color Options ({formData.additional_images.length}):
+                    </span>
+                    <div className="flex flex-wrap gap-2">
+                      {formData.additional_images.map((imgUrl, idx) => (
+                        <div key={idx} className="relative w-16 h-16 rounded-lg overflow-hidden bg-neutral-950 border border-neutral-800 group">
+                          <img src={imgUrl} alt="" className="w-full h-full object-cover" />
+                          <button
+                            type="button"
+                            onClick={() => removeVariantImage(idx)}
+                            className="absolute top-1 right-1 bg-rose-600 text-white p-1 rounded-full opacity-80 hover:opacity-100"
+                            title="Remove color photo"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -360,6 +469,16 @@ export default function AdminProductsPage() {
                 </div>
               </div>
 
+              <div>
+                <label className="font-semibold text-neutral-300 block mb-1">Short Description</label>
+                <input
+                  type="text"
+                  value={formData.short_description}
+                  onChange={(e) => setFormData({ ...formData, short_description: e.target.value })}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-neutral-900 border border-neutral-800 text-white"
+                />
+              </div>
+
               <div className="pt-4 border-t border-neutral-900 flex justify-end gap-3">
                 <button
                   type="button"
@@ -370,7 +489,7 @@ export default function AdminProductsPage() {
                 </button>
                 <button
                   type="submit"
-                  disabled={uploading}
+                  disabled={uploadingMain || uploadingVariants}
                   className="px-6 py-2.5 rounded-xl bg-gold-gradient text-black font-bold"
                 >
                   SAVE BAG TO CATALOG
