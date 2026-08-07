@@ -9,12 +9,13 @@ const config: Config = {
     extend: {
       colors: {
         brand: {
-          black: '#000000',
-          dark: '#111111',
+          primary: '#111111',      // Primary Black
+          secondary: '#C9A227',    // Luxury Gold
+          bg: '#F8F6F2',           // Ivory Background
+          accent: '#4A4A4A',       // Charcoal Gray
           gold: '#C9A227',
-          'gold-light': '#E2C253',
-          gray: '#888888',
-          light: '#F8F8F8',
+          'gold-hover': '#B58F1F',
+          charcoal: '#4A4A4A',
         }
       },
       fontFamily: {
