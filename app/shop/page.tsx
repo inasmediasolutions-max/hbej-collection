@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { Product, Category, BusinessSettings } from '@/types';
-import { Search, MessageCircle, SlidersHorizontal } from 'lucide-react';
+import { Search, MessageCircle, SlidersHorizontal, Palette } from 'lucide-react';
 
 function ShopContent() {
   const searchParams = useSearchParams();
@@ -133,21 +133,28 @@ function ShopContent() {
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
           {sortedProducts.map((product) => {
-            const whatsappMsg = `Hello HBEJ Collection 👋\n\nI'm interested in this bag:\n*${product.name}*\nPrice: ${currency}${product.price}\n\nIs this bag currently available?`;
+            const hasMultipleColors = product.additional_images && product.additional_images.length > 0;
+            const whatsappMsg = `Hello HBEJ Collection 👋\n\nI'm interested in this bag:\n*${product.name}*\nPrice: ${currency}${product.price}\n${hasMultipleColors ? '(Available in different colors)\n' : ''}\nIs this bag currently available?`;
             const whatsappUrl = `https://wa.me/${whatsappNum}?text=${encodeURIComponent(whatsappMsg)}`;
 
             return (
               <div
                 key={product.id}
-                className="group rounded-2xl bg-neutral-900 border border-neutral-800 overflow-hidden flex flex-col justify-between p-4 space-y-3"
+                className="group rounded-2xl bg-neutral-900 border border-neutral-800 overflow-hidden flex flex-col justify-between p-4 space-y-3 hover:border-amber-500/40 transition-all"
               >
-                <Link href={`/product/${product.slug}`} className="block">
-                  <div className="aspect-square rounded-xl overflow-hidden bg-neutral-950 mb-3">
+                <Link href={`/product/${product.slug}`} className="block relative">
+                  <div className="aspect-square rounded-xl overflow-hidden bg-neutral-950 mb-3 relative">
                     <img
                       src={product.main_image}
                       alt={product.name}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     />
+                    {hasMultipleColors && (
+                      <span className="absolute top-2 left-2 px-2 py-1 rounded bg-black/80 backdrop-blur-md border border-amber-500/40 text-amber-300 font-bold text-[9px] tracking-wider uppercase flex items-center gap-1 shadow-lg">
+                        <Palette className="w-3 h-3 text-amber-400" />
+                        Available in diff colors
+                      </span>
+                    )}
                   </div>
                   <h3 className="font-semibold text-sm text-neutral-100 hover:text-amber-400 line-clamp-1">
                     {product.name}
