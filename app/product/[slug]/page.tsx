@@ -74,14 +74,15 @@ export default function ProductDetailPage() {
     );
   }
 
-  const whatsappNum = settings?.whatsapp_number || '233593143270';
+  const rawNum = (settings?.whatsapp_number || '0593143270').replace(/\D/g, '');
+  const formattedNum = rawNum.startsWith('0') ? '233' + rawNum.slice(1) : rawNum.startsWith('233') ? rawNum : '233' + rawNum;
   const currency = settings?.currency || 'GH₵';
   const currentUrl = typeof window !== 'undefined' ? window.location.href : '';
 
   const hasMultipleColors = product.additional_images && product.additional_images.length > 0;
 
-  const whatsappMessage = `Hello HBEJ Collection 👋\n\nI'm interested in this bag:\n*${product.name}*\nPrice: ${currency}${product.price}\n${hasMultipleColors ? '(Available in different colors)\n' : ''}Product Link:\n${currentUrl}\n\nIs this bag currently available?`;
-  const whatsappUrl = `https://wa.me/${whatsappNum}?text=${encodeURIComponent(whatsappMessage)}`;
+  const whatsappMessage = `Hello HBEJ Collection, I'm interested in the ${product.name}. Is it available?`;
+  const whatsappUrl = `https://wa.me/${formattedNum}?text=${encodeURIComponent(whatsappMessage)}`;
 
   const allImages = [product.main_image, ...(product.additional_images || [])];
 
@@ -94,7 +95,7 @@ export default function ProductDetailPage() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-16 bg-[#F8F6F2] text-[#111111]">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-16 bg-[#F7F3EA] text-[#111111]">
       <div>
         <Link href="/shop" className="inline-flex items-center gap-2 text-xs font-bold text-[#4A4A4A] hover:text-[#C9A227]">
           <ArrowLeft className="w-4 h-4" /> Back to Shop Catalog
@@ -173,10 +174,10 @@ export default function ProductDetailPage() {
               href={whatsappUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="w-full py-4 rounded-2xl bg-[#C9A227] hover:bg-[#B58F1F] text-[#111111] font-extrabold text-base shadow-lg transition-all flex items-center justify-center gap-3 transform hover:scale-[1.02]"
+              className="w-full py-4 rounded-2xl bg-[#C9A227] hover:bg-[#B58F1F] text-[#111111] font-extrabold text-xs uppercase tracking-wider shadow-lg transition-all flex items-center justify-center gap-3 transform hover:scale-[1.02]"
             >
               <MessageCircle className="w-6 h-6 fill-current text-[#111111]" />
-              ORDER VIA WHATSAPP
+              CHAT ON WHATSAPP
             </a>
 
             <button
