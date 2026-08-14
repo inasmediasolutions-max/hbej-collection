@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { Product, Category, BusinessSettings } from '@/types';
-import { Search, MessageCircle, SlidersHorizontal, Palette } from 'lucide-react';
+import { Search, MessageCircle, SlidersHorizontal, Palette, Video } from 'lucide-react';
 
 function ShopContent() {
   const searchParams = useSearchParams();
@@ -135,6 +135,7 @@ function ShopContent() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
           {sortedProducts.map((product) => {
             const hasMultipleColors = product.additional_images && product.additional_images.length > 0;
+            const hasVideo = !!product.video_url;
             const whatsappMsg = `Hello HBEJ Collection, I'm interested in the ${product.name}. Is it available?`;
             const whatsappUrl = `https://wa.me/${formattedNum}?text=${encodeURIComponent(whatsappMsg)}`;
 
@@ -150,12 +151,20 @@ function ShopContent() {
                       alt={product.name}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     />
-                    {hasMultipleColors && (
-                      <span className="absolute top-2 left-2 px-2 py-0.5 rounded bg-[#111111] text-[#C9A227] font-bold text-[9px] tracking-wider uppercase flex items-center gap-1 shadow-md">
-                        <Palette className="w-3 h-3 text-[#C9A227]" />
-                        Diff colors
-                      </span>
-                    )}
+                    <div className="absolute top-2 left-2 flex flex-col gap-1">
+                      {hasVideo && (
+                        <span className="px-2 py-0.5 rounded bg-blue-600 text-white font-bold text-[9px] tracking-wider uppercase flex items-center gap-1 shadow-md">
+                          <Video className="w-3 h-3" />
+                          Video
+                        </span>
+                      )}
+                      {hasMultipleColors && (
+                        <span className="px-2 py-0.5 rounded bg-[#111111] text-[#C9A227] font-bold text-[9px] tracking-wider uppercase flex items-center gap-1 shadow-md">
+                          <Palette className="w-3 h-3 text-[#C9A227]" />
+                          Diff colors
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <h3 className="font-bold text-xs sm:text-sm text-[#111111] hover:text-[#C9A227] line-clamp-1">
                     {product.name}
