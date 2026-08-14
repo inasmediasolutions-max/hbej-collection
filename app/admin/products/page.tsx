@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Product, Category } from '@/types';
-import { Plus, Edit2, Trash2, Search, X, Image as ImageIcon, Palette, Video, Play } from 'lucide-react';
+import { Plus, Edit2, Trash2, Search, X, Image as ImageIcon, Palette, Video, Sparkles, Loader2 } from 'lucide-react';
 
 export default function AdminProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -23,7 +23,7 @@ export default function AdminProductsPage() {
     full_description: '',
     main_image: '',
     additional_images: [] as string[],
-    video_url: '',
+    video_urls: [] as string[],
     material: '',
     color: '',
     dimensions: '',
@@ -37,7 +37,8 @@ export default function AdminProductsPage() {
 
   const [uploadingMain, setUploadingMain] = useState(false);
   const [uploadingVariants, setUploadingVariants] = useState(false);
-  const [uploadingVideo, setUploadingVideo] = useState(false);
+  const [uploadingVideos, setUploadingVideos] = useState(false);
+  const [aiAnalyzing, setAiAnalyzing] = useState(false);
   const [message, setMessage] = useState('');
 
   useEffect(() => {
@@ -60,6 +61,59 @@ export default function AdminProductsPage() {
       setLoading(false);
     }
   }
+
+  // AI Auto-Fill Function
+  const handleAiAutoFill = async () => {
+    const targetMediaUrl = formData.main_image || formData.video_urls[0];
+    if (!targetMediaUrl) {
+      setMessage('Please upload at least a Main Photo or Video before using AI Auto-Fill!');
+      return;
+    }
+
+    try {
+      setAiAnalyzing(true);
+      setMessage('✨ AI Assistant is studying your bag photo/video...');
+
+      const res = await fetch('/api/analyze-bag', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageUrl: formData.main_image,
+          videoUrl: formData.video_urls[0],
+        }),
+      });
+
+      const resData = await res.json();
+      if (!res.ok || !resData.success) {
+        throw new Error(resData.error || 'AI analysis failed');
+      }
+
+      const ai = resData.data;
+
+      // Find matching category_id from category_slug
+      let matchedCatId = formData.category_id;
+      if (ai.category_slug && categories.length > 0) {
+        const foundCat = categories.find((c) => c.slug === ai.category_slug);
+        if (foundCat) matchedCatId = foundCat.id;
+      }
+
+      setFormData((prev) => ({
+        ...prev,
+        name: ai.name || prev.name,
+        category_id: matchedCatId || prev.category_id,
+        short_description: ai.short_description || prev.short_description,
+        full_description: ai.full_description || prev.full_description,
+        material: ai.material || prev.material,
+        color: ai.color || prev.color,
+      }));
+
+      setMessage('✨ AI successfully auto-filled bag details! You can edit any field before saving.');
+    } catch (err: any) {
+      setMessage(`AI error: ${err.message}`);
+    } finally {
+      setAiAnalyzing(false);
+    }
+  };
 
   // Handle Main Photo Upload
   const handleMainImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -85,7 +139,7 @@ export default function AdminProductsPage() {
         .getPublicUrl(filePath);
 
       setFormData((prev) => ({ ...prev, main_image: urlData.publicUrl }));
-      setMessage('Main photo uploaded successfully!');
+      setMessage('Main photo uploaded successfully! Click "AI Auto-Fill" to auto-generate details.');
     } catch (err: any) {
       setMessage(`Upload failed: ${err.message}`);
     } finally {
@@ -93,36 +147,53 @@ export default function AdminProductsPage() {
     }
   };
 
-  // Handle Video File Upload
-  const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // Handle Multiple Video Uploads
+  const handleVideosUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
 
     try {
-      setUploadingVideo(true);
-      setMessage('Uploading video... (this may take a moment)');
-      
-      const fileExt = file.name.split('.').pop();
-      const fileName = `video_${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`;
-      const filePath = `videos/${fileName}`;
+      setUploadingVideos(true);
+      setMessage(`Uploading ${files.length} video(s)...`);
 
-      const { error: uploadError } = await supabase.storage
-        .from('hbej-media')
-        .upload(filePath, file);
+      const uploadedUrls: string[] = [];
 
-      if (uploadError) throw uploadError;
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const fileExt = file.name.split('.').pop();
+        const fileName = `video_${Date.now()}_${i}_${Math.random().toString(36).substring(2)}.${fileExt}`;
+        const filePath = `videos/${fileName}`;
 
-      const { data: urlData } = supabase.storage
-        .from('hbej-media')
-        .getPublicUrl(filePath);
+        const { error: uploadError } = await supabase.storage
+          .from('hbej-media')
+          .upload(filePath, file);
 
-      setFormData((prev) => ({ ...prev, video_url: urlData.publicUrl }));
-      setMessage('Video uploaded successfully!');
+        if (uploadError) throw uploadError;
+
+        const { data: urlData } = supabase.storage
+          .from('hbej-media')
+          .getPublicUrl(filePath);
+
+        uploadedUrls.push(urlData.publicUrl);
+      }
+
+      setFormData((prev) => ({
+        ...prev,
+        video_urls: [...prev.video_urls, ...uploadedUrls],
+      }));
+      setMessage('Video(s) uploaded successfully!');
     } catch (err: any) {
       setMessage(`Video upload failed: ${err.message}`);
     } finally {
-      setUploadingVideo(false);
+      setUploadingVideos(false);
     }
+  };
+
+  const removeVideo = (indexToRemove: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      video_urls: prev.video_urls.filter((_, idx) => idx !== indexToRemove),
+    }));
   };
 
   // Handle Multiple Color Variant Photos Upload
@@ -184,7 +255,7 @@ export default function AdminProductsPage() {
       full_description: '',
       main_image: '',
       additional_images: [],
-      video_url: '',
+      video_urls: [],
       material: '',
       color: '',
       dimensions: '',
@@ -201,6 +272,14 @@ export default function AdminProductsPage() {
 
   const openEditModal = (product: Product) => {
     setEditingProduct(product);
+    
+    let vUrls: string[] = [];
+    if (product.video_urls && product.video_urls.length > 0) {
+      vUrls = product.video_urls;
+    } else if (product.video_url) {
+      vUrls = [product.video_url];
+    }
+
     setFormData({
       name: product.name,
       price: product.price.toString(),
@@ -209,7 +288,7 @@ export default function AdminProductsPage() {
       full_description: product.full_description || '',
       main_image: product.main_image,
       additional_images: product.additional_images || [],
-      video_url: product.video_url || '',
+      video_urls: vUrls,
       material: product.material || '',
       color: product.color || '',
       dimensions: product.dimensions || '',
@@ -247,7 +326,8 @@ export default function AdminProductsPage() {
         full_description: formData.full_description,
         main_image: formData.main_image,
         additional_images: formData.additional_images,
-        video_url: formData.video_url || null,
+        video_urls: formData.video_urls,
+        video_url: formData.video_urls[0] || null,
         material: formData.material,
         color: formData.color,
         dimensions: formData.dimensions,
@@ -299,7 +379,7 @@ export default function AdminProductsPage() {
             Manage Bag Catalog
           </h1>
           <p className="text-xs text-neutral-400">
-            Add new bags, set prices, upload videos, color photos, and update stock
+            Add new bags, set prices, upload videos, color photos, and use AI Auto-Fill
           </p>
         </div>
 
@@ -336,45 +416,48 @@ export default function AdminProductsPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-900">
-            {filtered.map((p) => (
-              <tr key={p.id} className="hover:bg-neutral-900/50">
-                <td className="py-3 px-3">
-                  <img src={p.main_image} alt="" className="w-12 h-12 rounded-lg object-cover bg-neutral-900" />
-                </td>
-                <td className="py-3 px-3 font-semibold text-white">{p.name}</td>
-                <td className="py-3 px-3 text-neutral-400">{p.categories?.name || 'Uncategorized'}</td>
-                <td className="py-3 px-3 font-bold text-amber-400">GH₵{p.price}</td>
-                <td className="py-3 px-3 space-y-1">
-                  {p.video_url && (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-500/10 text-blue-400 rounded text-[10px] font-semibold border border-blue-500/20 block w-fit">
-                      <Video className="w-3 h-3" /> Has Video
+            {filtered.map((p) => {
+              const vCount = (p.video_urls?.length) || (p.video_url ? 1 : 0);
+              return (
+                <tr key={p.id} className="hover:bg-neutral-900/50">
+                  <td className="py-3 px-3">
+                    <img src={p.main_image} alt="" className="w-12 h-12 rounded-lg object-cover bg-neutral-900" />
+                  </td>
+                  <td className="py-3 px-3 font-semibold text-white">{p.name}</td>
+                  <td className="py-3 px-3 text-neutral-400">{p.categories?.name || 'Uncategorized'}</td>
+                  <td className="py-3 px-3 font-bold text-amber-400">GH₵{p.price}</td>
+                  <td className="py-3 px-3 space-y-1">
+                    {vCount > 0 && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-500/10 text-blue-400 rounded text-[10px] font-semibold border border-blue-500/20 block w-fit">
+                        <Video className="w-3 h-3" /> {vCount} Video(s)
+                      </span>
+                    )}
+                    {p.additional_images && p.additional_images.length > 0 && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-500/10 text-amber-400 rounded text-[10px] font-semibold border border-amber-500/20 block w-fit">
+                        <Palette className="w-3 h-3" /> {p.additional_images.length + 1} Colors
+                      </span>
+                    )}
+                  </td>
+                  <td className="py-3 px-3">
+                    <span
+                      className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                        p.stock_status === 'available' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'
+                      }`}
+                    >
+                      {p.stock_status}
                     </span>
-                  )}
-                  {p.additional_images && p.additional_images.length > 0 && (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-500/10 text-amber-400 rounded text-[10px] font-semibold border border-amber-500/20 block w-fit">
-                      <Palette className="w-3 h-3" /> {p.additional_images.length + 1} Colors
-                    </span>
-                  )}
-                </td>
-                <td className="py-3 px-3">
-                  <span
-                    className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                      p.stock_status === 'available' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'
-                    }`}
-                  >
-                    {p.stock_status}
-                  </span>
-                </td>
-                <td className="py-3 px-3 space-x-2">
-                  <button onClick={() => openEditModal(p)} className="p-1.5 bg-neutral-900 rounded-lg text-amber-400 hover:bg-neutral-800">
-                    <Edit2 className="w-3.5 h-3.5" />
-                  </button>
-                  <button onClick={() => setDeleteConfirmId(p.id)} className="p-1.5 bg-neutral-900 rounded-lg text-rose-400 hover:bg-neutral-800">
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </td>
-              </tr>
-            ))}
+                  </td>
+                  <td className="py-3 px-3 space-x-2">
+                    <button onClick={() => openEditModal(p)} className="p-1.5 bg-neutral-900 rounded-lg text-amber-400 hover:bg-neutral-800">
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                    <button onClick={() => setDeleteConfirmId(p.id)} className="p-1.5 bg-neutral-900 rounded-lg text-rose-400 hover:bg-neutral-800">
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -391,7 +474,7 @@ export default function AdminProductsPage() {
               </button>
             </div>
 
-            {message && <div className="p-3 bg-neutral-900 text-amber-400 text-xs rounded-xl">{message}</div>}
+            {message && <div className="p-3 bg-neutral-900 text-amber-400 text-xs rounded-xl font-semibold">{message}</div>}
 
             <form onSubmit={handleSaveProduct} className="space-y-4 text-xs">
               {/* Main Photo Upload */}
@@ -414,34 +497,74 @@ export default function AdminProductsPage() {
                 </div>
               </div>
 
-              {/* NEW SECTION: Video Upload */}
+              {/* MAGIC AI AUTO-FILL BUTTON */}
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-500/10 via-yellow-500/10 to-amber-500/10 border border-amber-500/40 flex items-center justify-between gap-4">
+                <div>
+                  <h4 className="font-extrabold text-amber-400 text-xs flex items-center gap-1.5 uppercase">
+                    <Sparkles className="w-4 h-4 text-amber-400" />
+                    AI Bag Assistant
+                  </h4>
+                  <p className="text-[11px] text-neutral-300 mt-0.5 font-medium">
+                    Upload a photo/video above and click this button to auto-fill Bag Name, Category, & Description!
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleAiAutoFill}
+                  disabled={aiAnalyzing || !formData.main_image}
+                  className="px-5 py-2.5 rounded-xl bg-gold-gradient text-black font-extrabold text-xs tracking-wider uppercase flex items-center gap-2 shadow-md hover:opacity-90 disabled:opacity-50 flex-shrink-0"
+                >
+                  {aiAnalyzing ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Studying Bag...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4" />
+                      Auto-Fill with AI
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Multiple Videos Upload */}
               <div className="p-4 rounded-2xl bg-neutral-900/60 border border-blue-500/20 space-y-3">
                 <div className="flex items-center gap-2 text-blue-400 font-semibold text-xs">
                   <Video className="w-4 h-4" />
-                  <span>Bag Showcase Video (Optional)</span>
+                  <span>Bag Showcase Videos (Upload Multiple MP4/MOV)</span>
                 </div>
                 <p className="text-[11px] text-neutral-400">
-                  Upload an MP4 or MOV video showing the bag model in action. A video badge and player will appear on the product page!
+                  Upload one or more videos showing this bag in motion. HD video players will appear on the product page!
                 </p>
 
                 <input
                   type="file"
+                  multiple
                   accept="video/mp4,video/webm,video/quicktime,video/*"
-                  onChange={handleVideoUpload}
+                  onChange={handleVideosUpload}
                   className="text-xs text-neutral-400 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-blue-500/20 file:text-blue-300 hover:file:bg-blue-500/30"
                 />
 
-                {formData.video_url && (
+                {formData.video_urls.length > 0 && (
                   <div className="pt-2 space-y-2">
-                    <span className="text-[10px] uppercase text-neutral-400 font-semibold block">Uploaded Video Preview:</span>
-                    <video src={formData.video_url} controls className="w-full h-40 rounded-xl bg-black" />
-                    <button
-                      type="button"
-                      onClick={() => setFormData({ ...formData, video_url: '' })}
-                      className="text-xs text-rose-400 hover:underline block"
-                    >
-                      Remove Video
-                    </button>
+                    <span className="text-[10px] uppercase text-neutral-400 font-semibold block">
+                      Uploaded Videos ({formData.video_urls.length}):
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {formData.video_urls.map((vUrl, idx) => (
+                        <div key={idx} className="relative rounded-xl overflow-hidden bg-black p-2 border border-neutral-800 space-y-1">
+                          <video src={vUrl} controls className="w-full h-28 object-cover rounded-lg" />
+                          <button
+                            type="button"
+                            onClick={() => removeVideo(idx)}
+                            className="text-[11px] text-rose-400 hover:underline block text-center w-full pt-1"
+                          >
+                            Remove Video {idx + 1}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
@@ -489,19 +612,20 @@ export default function AdminProductsPage() {
                     required
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-neutral-900 border border-neutral-800 text-white"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-neutral-900 border border-neutral-800 text-white font-semibold"
                   />
                 </div>
 
                 <div>
-                  <label className="font-semibold text-neutral-300 block mb-1">Price (GH₵) *</label>
+                  <label className="font-semibold text-neutral-300 block mb-1">Price (GH₵) * (Set by You)</label>
                   <input
                     type="number"
                     step="0.01"
                     required
+                    placeholder="e.g. 350"
                     value={formData.price}
                     onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-neutral-900 border border-neutral-800 text-white"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-neutral-900 border border-neutral-800 text-white font-bold"
                   />
                 </div>
               </div>
@@ -512,7 +636,7 @@ export default function AdminProductsPage() {
                   <select
                     value={formData.category_id}
                     onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-neutral-900 border border-neutral-800 text-white"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-neutral-900 border border-neutral-800 text-white font-semibold"
                   >
                     {categories.map((c) => (
                       <option key={c.id} value={c.id}>{c.name}</option>
@@ -521,11 +645,11 @@ export default function AdminProductsPage() {
                 </div>
 
                 <div>
-                  <label className="font-semibold text-neutral-300 block mb-1">Stock Status</label>
+                  <label className="font-semibold text-neutral-300 block mb-1">Stock Status (Set by You)</label>
                   <select
                     value={formData.stock_status}
                     onChange={(e) => setFormData({ ...formData, stock_status: e.target.value as any })}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-neutral-900 border border-neutral-800 text-white"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-neutral-900 border border-neutral-800 text-white font-semibold"
                   >
                     <option value="available">Available</option>
                     <option value="out_of_stock">Out of Stock</option>
@@ -533,18 +657,38 @@ export default function AdminProductsPage() {
                 </div>
               </div>
 
+              <div>
+                <label className="font-semibold text-neutral-300 block mb-1">Short Description</label>
+                <input
+                  type="text"
+                  value={formData.short_description}
+                  onChange={(e) => setFormData({ ...formData, short_description: e.target.value })}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-neutral-900 border border-neutral-800 text-white"
+                />
+              </div>
+
+              <div>
+                <label className="font-semibold text-neutral-300 block mb-1">Full Description</label>
+                <textarea
+                  rows={3}
+                  value={formData.full_description}
+                  onChange={(e) => setFormData({ ...formData, full_description: e.target.value })}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-neutral-900 border border-neutral-800 text-white"
+                />
+              </div>
+
               <div className="pt-4 border-t border-neutral-900 flex justify-end gap-3">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-5 py-2.5 rounded-xl bg-neutral-900 text-neutral-300"
+                  className="px-5 py-2.5 rounded-xl bg-neutral-900 text-neutral-300 font-semibold"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={uploadingMain || uploadingVariants || uploadingVideo}
-                  className="px-6 py-2.5 rounded-xl bg-gold-gradient text-black font-bold"
+                  disabled={uploadingMain || uploadingVariants || uploadingVideos}
+                  className="px-6 py-2.5 rounded-xl bg-gold-gradient text-black font-extrabold"
                 >
                   SAVE BAG TO CATALOG
                 </button>
@@ -564,7 +708,7 @@ export default function AdminProductsPage() {
             <div className="flex gap-3 pt-2">
               <button
                 onClick={() => setDeleteConfirmId(null)}
-                className="flex-1 py-2.5 rounded-xl bg-neutral-900 text-neutral-300 text-xs"
+                className="flex-1 py-2.5 rounded-xl bg-neutral-900 text-neutral-300 text-xs font-semibold"
               >
                 Cancel
               </button>
