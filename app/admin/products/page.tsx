@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Product, Category } from '@/types';
-import { Plus, Edit2, Trash2, Search, X, Image as ImageIcon, Palette } from 'lucide-react';
+import { Plus, Edit2, Trash2, Search, X, Image as ImageIcon, Palette, Video, Play } from 'lucide-react';
 
 export default function AdminProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -23,6 +23,7 @@ export default function AdminProductsPage() {
     full_description: '',
     main_image: '',
     additional_images: [] as string[],
+    video_url: '',
     material: '',
     color: '',
     dimensions: '',
@@ -36,6 +37,7 @@ export default function AdminProductsPage() {
 
   const [uploadingMain, setUploadingMain] = useState(false);
   const [uploadingVariants, setUploadingVariants] = useState(false);
+  const [uploadingVideo, setUploadingVideo] = useState(false);
   const [message, setMessage] = useState('');
 
   useEffect(() => {
@@ -88,6 +90,38 @@ export default function AdminProductsPage() {
       setMessage(`Upload failed: ${err.message}`);
     } finally {
       setUploadingMain(false);
+    }
+  };
+
+  // Handle Video File Upload
+  const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setUploadingVideo(true);
+      setMessage('Uploading video... (this may take a moment)');
+      
+      const fileExt = file.name.split('.').pop();
+      const fileName = `video_${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`;
+      const filePath = `videos/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('hbej-media')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage
+        .from('hbej-media')
+        .getPublicUrl(filePath);
+
+      setFormData((prev) => ({ ...prev, video_url: urlData.publicUrl }));
+      setMessage('Video uploaded successfully!');
+    } catch (err: any) {
+      setMessage(`Video upload failed: ${err.message}`);
+    } finally {
+      setUploadingVideo(false);
     }
   };
 
@@ -150,6 +184,7 @@ export default function AdminProductsPage() {
       full_description: '',
       main_image: '',
       additional_images: [],
+      video_url: '',
       material: '',
       color: '',
       dimensions: '',
@@ -174,6 +209,7 @@ export default function AdminProductsPage() {
       full_description: product.full_description || '',
       main_image: product.main_image,
       additional_images: product.additional_images || [],
+      video_url: product.video_url || '',
       material: product.material || '',
       color: product.color || '',
       dimensions: product.dimensions || '',
@@ -211,6 +247,7 @@ export default function AdminProductsPage() {
         full_description: formData.full_description,
         main_image: formData.main_image,
         additional_images: formData.additional_images,
+        video_url: formData.video_url || null,
         material: formData.material,
         color: formData.color,
         dimensions: formData.dimensions,
@@ -262,7 +299,7 @@ export default function AdminProductsPage() {
             Manage Bag Catalog
           </h1>
           <p className="text-xs text-neutral-400">
-            Add new bags, set prices, upload color variant photos, and update stock
+            Add new bags, set prices, upload videos, color photos, and update stock
           </p>
         </div>
 
@@ -293,7 +330,7 @@ export default function AdminProductsPage() {
               <th className="py-3 px-3">Name</th>
               <th className="py-3 px-3">Category</th>
               <th className="py-3 px-3">Price</th>
-              <th className="py-3 px-3">Color Options</th>
+              <th className="py-3 px-3">Media Options</th>
               <th className="py-3 px-3">Stock</th>
               <th className="py-3 px-3">Actions</th>
             </tr>
@@ -307,13 +344,16 @@ export default function AdminProductsPage() {
                 <td className="py-3 px-3 font-semibold text-white">{p.name}</td>
                 <td className="py-3 px-3 text-neutral-400">{p.categories?.name || 'Uncategorized'}</td>
                 <td className="py-3 px-3 font-bold text-amber-400">GH₵{p.price}</td>
-                <td className="py-3 px-3">
-                  {p.additional_images && p.additional_images.length > 0 ? (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-500/10 text-amber-400 rounded text-[10px] font-semibold border border-amber-500/20">
-                      <Palette className="w-3 h-3" /> Available in {p.additional_images.length + 1} colors
+                <td className="py-3 px-3 space-y-1">
+                  {p.video_url && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-500/10 text-blue-400 rounded text-[10px] font-semibold border border-blue-500/20 block w-fit">
+                      <Video className="w-3 h-3" /> Has Video
                     </span>
-                  ) : (
-                    <span className="text-neutral-500 text-[10px]">Single color</span>
+                  )}
+                  {p.additional_images && p.additional_images.length > 0 && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-500/10 text-amber-400 rounded text-[10px] font-semibold border border-amber-500/20 block w-fit">
+                      <Palette className="w-3 h-3" /> {p.additional_images.length + 1} Colors
+                    </span>
                   )}
                 </td>
                 <td className="py-3 px-3">
@@ -374,15 +414,44 @@ export default function AdminProductsPage() {
                 </div>
               </div>
 
-              {/* NEW SECTION: Color Variants Photos Upload */}
+              {/* NEW SECTION: Video Upload */}
+              <div className="p-4 rounded-2xl bg-neutral-900/60 border border-blue-500/20 space-y-3">
+                <div className="flex items-center gap-2 text-blue-400 font-semibold text-xs">
+                  <Video className="w-4 h-4" />
+                  <span>Bag Showcase Video (Optional)</span>
+                </div>
+                <p className="text-[11px] text-neutral-400">
+                  Upload an MP4 or MOV video showing the bag model in action. A video badge and player will appear on the product page!
+                </p>
+
+                <input
+                  type="file"
+                  accept="video/mp4,video/webm,video/quicktime,video/*"
+                  onChange={handleVideoUpload}
+                  className="text-xs text-neutral-400 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-blue-500/20 file:text-blue-300 hover:file:bg-blue-500/30"
+                />
+
+                {formData.video_url && (
+                  <div className="pt-2 space-y-2">
+                    <span className="text-[10px] uppercase text-neutral-400 font-semibold block">Uploaded Video Preview:</span>
+                    <video src={formData.video_url} controls className="w-full h-40 rounded-xl bg-black" />
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, video_url: '' })}
+                      className="text-xs text-rose-400 hover:underline block"
+                    >
+                      Remove Video
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Color Variants Photos Upload */}
               <div className="p-4 rounded-2xl bg-neutral-900/60 border border-amber-500/20 space-y-3">
                 <div className="flex items-center gap-2 text-amber-400 font-semibold text-xs">
                   <Palette className="w-4 h-4" />
                   <span>Available in Different Colors (Color Variant Photos)</span>
                 </div>
-                <p className="text-[11px] text-neutral-400">
-                  Upload extra photos showing this exact bag in different colors. The keyword <strong>"Available in different Colors"</strong> will be displayed automatically on the website.
-                </p>
 
                 <input
                   type="file"
@@ -392,21 +461,16 @@ export default function AdminProductsPage() {
                   className="text-xs text-neutral-400 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-amber-500/20 file:text-amber-300 hover:file:bg-amber-500/30"
                 />
 
-                {/* Variant Thumbnails Preview */}
                 {formData.additional_images.length > 0 && (
                   <div className="pt-2">
-                    <span className="text-[10px] uppercase text-neutral-500 font-semibold block mb-2">
-                      Uploaded Color Options ({formData.additional_images.length}):
-                    </span>
                     <div className="flex flex-wrap gap-2">
                       {formData.additional_images.map((imgUrl, idx) => (
-                        <div key={idx} className="relative w-16 h-16 rounded-lg overflow-hidden bg-neutral-950 border border-neutral-800 group">
+                        <div key={idx} className="relative w-16 h-16 rounded-lg overflow-hidden bg-neutral-950 border border-neutral-800">
                           <img src={imgUrl} alt="" className="w-full h-full object-cover" />
                           <button
                             type="button"
                             onClick={() => removeVariantImage(idx)}
                             className="absolute top-1 right-1 bg-rose-600 text-white p-1 rounded-full opacity-80 hover:opacity-100"
-                            title="Remove color photo"
                           >
                             <X className="w-3 h-3" />
                           </button>
@@ -469,16 +533,6 @@ export default function AdminProductsPage() {
                 </div>
               </div>
 
-              <div>
-                <label className="font-semibold text-neutral-300 block mb-1">Short Description</label>
-                <input
-                  type="text"
-                  value={formData.short_description}
-                  onChange={(e) => setFormData({ ...formData, short_description: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-neutral-900 border border-neutral-800 text-white"
-                />
-              </div>
-
               <div className="pt-4 border-t border-neutral-900 flex justify-end gap-3">
                 <button
                   type="button"
@@ -489,7 +543,7 @@ export default function AdminProductsPage() {
                 </button>
                 <button
                   type="submit"
-                  disabled={uploadingMain || uploadingVariants}
+                  disabled={uploadingMain || uploadingVariants || uploadingVideo}
                   className="px-6 py-2.5 rounded-xl bg-gold-gradient text-black font-bold"
                 >
                   SAVE BAG TO CATALOG
