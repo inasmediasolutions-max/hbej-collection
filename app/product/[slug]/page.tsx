@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { Product, BusinessSettings } from '@/types';
-import { MessageCircle, ArrowLeft, Share2, Check, Palette } from 'lucide-react';
+import { MessageCircle, ArrowLeft, Share2, Check, Palette, Video, Play } from 'lucide-react';
 
 export default function ProductDetailPage() {
   const params = useParams();
@@ -15,6 +15,7 @@ export default function ProductDetailPage() {
   const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
   const [settings, setSettings] = useState<BusinessSettings | null>(null);
   const [selectedImage, setSelectedImage] = useState<string>('');
+  const [showVideo, setShowVideo] = useState<boolean>(false);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
 
@@ -80,6 +81,7 @@ export default function ProductDetailPage() {
   const currentUrl = typeof window !== 'undefined' ? window.location.href : '';
 
   const hasMultipleColors = product.additional_images && product.additional_images.length > 0;
+  const hasVideo = !!product.video_url;
 
   const whatsappMessage = `Hello HBEJ Collection, I'm interested in the ${product.name}. Is it available?`;
   const whatsappUrl = `https://wa.me/${formattedNum}?text=${encodeURIComponent(whatsappMessage)}`;
@@ -103,43 +105,77 @@ export default function ProductDetailPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-        {/* Left Gallery */}
+        {/* Left Gallery & Video */}
         <div className="space-y-4">
           <div className="relative aspect-square rounded-3xl overflow-hidden bg-white border-2 border-[#C9A227]/30 shadow-xl">
-            <img
-              src={selectedImage || product.main_image}
-              alt={product.name}
-              className="w-full h-full object-cover transition-all duration-300"
-            />
-            {hasMultipleColors && (
-              <div className="absolute top-4 left-4 bg-[#111111] text-[#C9A227] border border-[#C9A227]/40 px-3.5 py-1.5 rounded-full text-xs font-bold flex items-center gap-2 shadow-lg">
-                <Palette className="w-3.5 h-3.5 text-[#C9A227]" />
-                Available in different colors
-              </div>
+            {showVideo && product.video_url ? (
+              <video
+                src={product.video_url}
+                controls
+                autoPlay
+                playsInline
+                className="w-full h-full object-cover bg-black"
+              />
+            ) : (
+              <img
+                src={selectedImage || product.main_image}
+                alt={product.name}
+                className="w-full h-full object-cover transition-all duration-300"
+              />
             )}
+
+            <div className="absolute top-4 left-4 flex flex-col gap-2">
+              {hasMultipleColors && (
+                <div className="bg-[#111111] text-[#C9A227] border border-[#C9A227]/40 px-3.5 py-1.5 rounded-full text-xs font-bold flex items-center gap-2 shadow-lg">
+                  <Palette className="w-3.5 h-3.5 text-[#C9A227]" />
+                  Available in different colors
+                </div>
+              )}
+              {hasVideo && (
+                <div className="bg-[#111111] text-blue-400 border border-blue-400/40 px-3.5 py-1.5 rounded-full text-xs font-bold flex items-center gap-2 shadow-lg">
+                  <Video className="w-3.5 h-3.5 text-blue-400" />
+                  Video Preview Available
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* Color Option Thumbnails */}
-          {allImages.length > 1 && (
-            <div className="space-y-2">
-              <span className="text-[11px] uppercase tracking-wider text-[#4A4A4A] font-bold block">
-                Tap to view color options ({allImages.length}):
-              </span>
-              <div className="flex items-center gap-3 overflow-x-auto pb-2">
-                {allImages.map((img, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => setSelectedImage(img)}
-                    className={`relative w-20 h-20 rounded-xl overflow-hidden bg-white border-2 transition-all flex-shrink-0 ${
-                      selectedImage === img ? 'border-[#C9A227] scale-105 shadow-md' : 'border-[#4A4A4A]/20 opacity-70 hover:opacity-100'
-                    }`}
-                  >
-                    <img src={img} alt="" className="w-full h-full object-cover" />
-                  </button>
-                ))}
-              </div>
+          {/* Media Thumbnails (Photos & Video Toggle) */}
+          <div className="space-y-2">
+            <span className="text-[11px] uppercase tracking-wider text-[#4A4A4A] font-bold block">
+              Tap to view options:
+            </span>
+            <div className="flex items-center gap-3 overflow-x-auto pb-2">
+              {/* Video Button Thumbnail */}
+              {hasVideo && (
+                <button
+                  onClick={() => setShowVideo(true)}
+                  className={`relative w-20 h-20 rounded-xl overflow-hidden bg-[#111111] border-2 transition-all flex-shrink-0 flex flex-col items-center justify-center gap-1 text-white ${
+                    showVideo ? 'border-[#C9A227] scale-105 shadow-md' : 'border-[#4A4A4A]/30 opacity-80 hover:opacity-100'
+                  }`}
+                >
+                  <Play className="w-6 h-6 text-[#C9A227] fill-current" />
+                  <span className="text-[9px] font-bold uppercase tracking-wider text-[#C9A227]">Watch Video</span>
+                </button>
+              )}
+
+              {/* Image Thumbnails */}
+              {allImages.map((img, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => {
+                    setSelectedImage(img);
+                    setShowVideo(false);
+                  }}
+                  className={`relative w-20 h-20 rounded-xl overflow-hidden bg-white border-2 transition-all flex-shrink-0 ${
+                    !showVideo && selectedImage === img ? 'border-[#C9A227] scale-105 shadow-md' : 'border-[#4A4A4A]/20 opacity-70 hover:opacity-100'
+                  }`}
+                >
+                  <img src={img} alt="" className="w-full h-full object-cover" />
+                </button>
+              ))}
             </div>
-          )}
+          </div>
         </div>
 
         {/* Right Details */}
@@ -207,6 +243,11 @@ export default function ProductDetailPage() {
               {hasMultipleColors && (
                 <div>
                   <span className="text-[#4A4A4A]">Color Options:</span> <span className="text-[#111111] font-extrabold">Available in different colors</span>
+                </div>
+              )}
+              {hasVideo && (
+                <div>
+                  <span className="text-[#4A4A4A]">Video Showcase:</span> <span className="text-blue-600 font-extrabold">Video Available</span>
                 </div>
               )}
               {product.dimensions && (
