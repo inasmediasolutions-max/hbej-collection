@@ -16,6 +16,7 @@ export interface Product {
   full_description?: string;
   main_image: string;
   additional_images?: string[];
+  video_url?: string;
   material?: string;
   color?: string;
   available_colors?: string[];
