@@ -90,13 +90,39 @@ export default function ProductDetailPage() {
   }
   const hasVideos = videoList.length > 0;
 
-  const whatsappMessage = `Hello HBEJ Collection, I'm interested in the ${product.name}. Is it available?`;
+  // Track exact active photo or video being viewed
+  const activeMediaUrl = selectedVideo || selectedImage || product.main_image;
+  const isVideoActive = !!selectedVideo;
+
+  const whatsappMessage = `Hello HBEJ Collection 👋
+
+I'm interested in this bag:
+*${product.name}*
+Price: ${currency}${product.price}
+
+${isVideoActive ? `🎥 *Selected Video Preview:* ${activeMediaUrl}` : `🖼️ *Selected Bag Photo:* ${activeMediaUrl}`}
+
+*Bag Page Link:*
+${currentUrl}
+
+Is this item currently available?`;
+
   const whatsappUrl = `https://wa.me/${formattedNum}?text=${encodeURIComponent(whatsappMessage)}`;
 
   const allImages = [product.main_image, ...(product.additional_images || [])];
 
-  const handleShare = () => {
-    if (navigator.clipboard) {
+  const handleShare = async () => {
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        await navigator.share({
+          title: `${product.name} | HBEJ Collection`,
+          text: `Check out this bag from HBEJ Collection: ${product.name} (${currency}${product.price})`,
+          url: currentUrl,
+        });
+      } catch (e) {
+        console.error(e);
+      }
+    } else if (typeof navigator !== 'undefined' && navigator.clipboard) {
       navigator.clipboard.writeText(currentUrl);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -150,7 +176,7 @@ export default function ProductDetailPage() {
           {/* Media Thumbnails (Photos & Video Toggle) */}
           <div className="space-y-2">
             <span className="text-[11px] uppercase tracking-wider text-[#4A4A4A] font-bold block">
-              Tap to view options:
+              Tap photo or video to select variant:
             </span>
             <div className="flex items-center gap-3 overflow-x-auto pb-2">
               {/* Video Thumbnails */}
@@ -159,7 +185,7 @@ export default function ProductDetailPage() {
                   key={`v-${vIdx}`}
                   onClick={() => setSelectedVideo(vUrl)}
                   className={`relative w-20 h-20 rounded-xl overflow-hidden bg-[#111111] border-2 transition-all flex-shrink-0 flex flex-col items-center justify-center gap-1 text-white ${
-                    selectedVideo === vUrl ? 'border-[#C9A227] scale-105 shadow-md' : 'border-[#4A4A4A]/30 opacity-80 hover:opacity-100'
+                    selectedVideo === vUrl ? 'border-[#C9A227] scale-105 shadow-md ring-2 ring-[#C9A227]' : 'border-[#4A4A4A]/30 opacity-80 hover:opacity-100'
                   }`}
                 >
                   <Play className="w-6 h-6 text-[#C9A227] fill-current" />
@@ -178,7 +204,7 @@ export default function ProductDetailPage() {
                     setSelectedVideo(null);
                   }}
                   className={`relative w-20 h-20 rounded-xl overflow-hidden bg-white border-2 transition-all flex-shrink-0 ${
-                    !selectedVideo && selectedImage === img ? 'border-[#C9A227] scale-105 shadow-md' : 'border-[#4A4A4A]/20 opacity-70 hover:opacity-100'
+                    !selectedVideo && selectedImage === img ? 'border-[#C9A227] scale-105 shadow-md ring-2 ring-[#C9A227]' : 'border-[#4A4A4A]/20 opacity-70 hover:opacity-100'
                   }`}
                 >
                   <img src={img} alt="" className="w-full h-full object-cover" />
@@ -204,7 +230,7 @@ export default function ProductDetailPage() {
             {hasMultipleColors && (
               <div className="mt-4 p-3 rounded-xl bg-[#C9A227]/15 border border-[#C9A227]/40 text-[#111111] text-xs font-bold flex items-center gap-2 shadow-sm">
                 <Palette className="w-4 h-4 text-[#111111] flex-shrink-0" />
-                <span>Available in different colors! Tap photos on the left to see all options.</span>
+                <span>Available in different colors! Tap photos on the left to select color options.</span>
               </div>
             )}
           </div>
